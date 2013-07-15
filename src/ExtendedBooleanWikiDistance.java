@@ -24,7 +24,7 @@ import org.apache.lucene.util.Version;
 public class ExtendedBooleanWikiDistance {
 
 	static String field = "contents";
-	static String indexPath = "/home/chrisschaefer/enwiki-20130604-lucene-no-stubs";
+	static String indexPath = "/home/chrisschaefer/enwiki-20130604-lucene-no-stubs-5-inlinks";
 	static String wordsim353Path = "/home/chrisschaefer/Arbeitsfläche/github/wikiprep-esa/esa-lucene/src/config/wordsim353-combined.tab";
 	static IndexReader reader;
 	static IndexSearcher searcher;
@@ -32,8 +32,9 @@ public class ExtendedBooleanWikiDistance {
 	static QueryParser parser;
 	static QueryParser parserTitle;
 	static boolean useWikiDistance = false;
-	static boolean useExtendedWikiDistance = true;
-	static boolean useCosineDistance = false;
+	static boolean useExtendedWikiDistance = false;
+	static boolean useCosineDistance = true;
+	static boolean useScoredDistance = false;
 	/**
 	 * @param args
 	 * @throws IOException 
@@ -64,6 +65,10 @@ public class ExtendedBooleanWikiDistance {
 	        	useCosineDistance = true;
 	          i++;
 	        }
+	        else if ("-scoredDistance".equals(args[i])) {
+	        	useScoredDistance = true;
+	          i++;
+	        }
 	      }
 	    
 		reader = DirectoryReader.open(FSDirectory.open(new File(indexPath)));
@@ -90,6 +95,9 @@ public class ExtendedBooleanWikiDistance {
 			}
 			else if(useExtendedWikiDistance) {
 				System.out.println(line + "\t" + (1.0 - extendedBooleanWikipediaDistance(parts[0], parts[1])));
+			}
+			else if(useScoredDistance) {
+				System.out.println(line + "\t" + (1.0 - scoredWikipediaDistance(parts[0], parts[1])));
 			}
 		}
 		br.close();
@@ -175,8 +183,8 @@ public class ExtendedBooleanWikiDistance {
 	
 		while (i < results0.scoreDocs.length && j < results1.scoreDocs.length) {
 	        if (results0.scoreDocs[i].doc < results1.scoreDocs[j].doc) {
-//	        	double sim1AND2 = 1 - Math.sqrt((Math.pow(1 - results0.scoreDocs[i].score/maxScore0, 2) + 1) / 2.0);
-//				sum += sim1AND2;
+	        	double sim1AND2 = 1 - Math.sqrt((Math.pow(1 - results0.scoreDocs[i].score/maxScore0, 2) + 1) / 2.0);
+				sum += sim1AND2;
 	            i++;
 	        }
 	        else if (results0.scoreDocs[i].doc == results1.scoreDocs[j].doc) {
@@ -186,24 +194,24 @@ public class ExtendedBooleanWikiDistance {
 	            j++;
 	        }
 	        else {
-//	        	double sim1AND2 = 1 - Math.sqrt((1 + Math.pow(1 - results1.scoreDocs[j].score/maxScore1, 2)) / 2.0);
-//				sum += sim1AND2;
+	        	double sim1AND2 = 1 - Math.sqrt((1 + Math.pow(1 - results1.scoreDocs[j].score/maxScore1, 2)) / 2.0);
+				sum += sim1AND2;
 	            j++;
 	        }
 	    }
 
-//	    while (i < results0.scoreDocs.length) {
-//	    	double sim1AND2 = 1 - Math.sqrt((Math.pow(1 - results0.scoreDocs[i].score/maxScore0, 2) + 1) / 2.0);
-//			sum += sim1AND2;
-//	        i++;
-//
-//	    }
-//
-//	    while (j < results1.scoreDocs.length) {
-//	    	double sim1AND2 = 1 - Math.sqrt((1 + Math.pow(1 - results1.scoreDocs[j].score/maxScore1, 2)) / 2.0);
-//			sum += sim1AND2;
-//	        j++;
-//	    }
+	    while (i < results0.scoreDocs.length) {
+	    	double sim1AND2 = 1 - Math.sqrt((Math.pow(1 - results0.scoreDocs[i].score/maxScore0, 2) + 1) / 2.0);
+			sum += sim1AND2;
+	        i++;
+
+	    }
+
+	    while (j < results1.scoreDocs.length) {
+	    	double sim1AND2 = 1 - Math.sqrt((1 + Math.pow(1 - results1.scoreDocs[j].score/maxScore1, 2)) / 2.0);
+			sum += sim1AND2;
+	        j++;
+	    }
 		return sum;
 	}
 	
@@ -226,33 +234,41 @@ public class ExtendedBooleanWikiDistance {
 	}
 	
 	private static double cosine(TopDocs results0, TopDocs results1){
-		double sum = 0;
+		double scalar = 0.0d, r0Norm=0.0d, r1Norm=0.0d;
 
 		int i = 0, j = 0;
 	
 		while (i < results0.scoreDocs.length && j < results1.scoreDocs.length) {
 	        if (results0.scoreDocs[i].doc < results1.scoreDocs[j].doc) {
+	        	r0Norm += Math.pow(results0.scoreDocs[i].score, 2);
 	            i++;
 	        }
 	        else if (results0.scoreDocs[i].doc == results1.scoreDocs[j].doc) {
-				sum += results0.scoreDocs[i].score * results1.scoreDocs[j].score;
+	        	scalar += results0.scoreDocs[i].score * results1.scoreDocs[j].score;
+	        	r0Norm += Math.pow(results0.scoreDocs[i].score, 2);
+	        	r1Norm += Math.pow(results1.scoreDocs[j].score, 2);
 	            i++;
 	            j++;
 	        }
 	        else {
+	        	r1Norm += Math.pow(results1.scoreDocs[j].score, 2);
 	            j++;
 	        }
 	    }
-		return sum / (lengthScoreVector(results0) * lengthScoreVector(results1));
+	    while (i < results0.scoreDocs.length) {
+	    	r0Norm += Math.pow(results0.scoreDocs[i].score, 2);
+	        i++;
+
+	    }
+	    while (j < results1.scoreDocs.length) {
+	    	r1Norm += Math.pow(results1.scoreDocs[j].score, 2);
+	        j++;
+	    }
+		r0Norm=Math.sqrt(r0Norm);
+		r1Norm=Math.sqrt(r1Norm);
+		return scalar / (r0Norm * r1Norm);
 	}
 	
-	private static double lengthScoreVector(TopDocs results) {
-		double sum = 0.0; 
-		for (ScoreDoc d: results.scoreDocs) {
-			sum += (d.score * d.score);
-		}
-		return Math.sqrt(sum);
-	}
 	
 	public static double scoredWikipediaDistance(String term0, String term1) throws ParseException, IOException {
 

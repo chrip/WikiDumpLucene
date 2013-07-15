@@ -53,9 +53,9 @@ public class MakeLuceneIndex {
 	 * @throws FileNotFoundException */
 	public static void main(String[] args) throws FileNotFoundException, UnsupportedEncodingException {
 		String baseDir = "/home/chrisschaefer/";
-		String wikiDumpFile = "Downloads/enwiki-20130604-pages-articles.xml.bz2";
-		//String wikiDumpFile = "Downloads/enwiki-20130604-pages-articlese.xml.bz2";
-		String luceneIndexName = "enwiki-20130604-lucene-no-stubs-5-inlinks";
+		//String wikiDumpFile = "Downloads/enwiki-20130604-pages-articles.xml.bz2";
+		String wikiDumpFile = "Downloads/enwiki-20130604-pages-articlese.xml.bz2";
+		String luceneIndexName = "enwiki-20130604-lucene-no-stubs-test";
 
 		System.currentTimeMillis();
 		boolean bIgnoreStubs = true;
@@ -89,7 +89,7 @@ public class MakeLuceneIndex {
 			Directory dir = FSDirectory.open(new File(baseDir + luceneIndexName));
 
 
-			Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_43);
+			Analyzer analyzer = new WikipediaAnalyzer();
 			IndexWriterConfig iwc = new IndexWriterConfig(Version.LUCENE_43, analyzer);
 
 

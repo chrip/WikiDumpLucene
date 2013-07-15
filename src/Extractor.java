@@ -326,17 +326,17 @@ public class Extractor {
 //        cleanedString = cleanedString.replaceAll("====", " ");
 //        cleanedString = cleanedString.replaceAll("===", " ");
 //        cleanedString = cleanedString.replaceAll("==", " ");
-//        cleanedString = cleanedString.replaceAll("'''''", " ");
-//        cleanedString = cleanedString.replaceAll("''''", " ");
-//        cleanedString = cleanedString.replaceAll("'''", " ");
-//        cleanedString = cleanedString.replaceAll("''", " ");
+        cleanedString = cleanedString.replaceAll("'''''", " ");
+        cleanedString = cleanedString.replaceAll("''''", " ");
+        cleanedString = cleanedString.replaceAll("'''", " ");
+        cleanedString = cleanedString.replaceAll("''", " ");
         cleanedString = cleanedString.replaceAll("\\&quot;", "\"");
 //        cleanedString = cleanedString.replaceAll("\\&amp;", " and ");
         cleanedString = cleanedString.replaceAll("\\&ndash;", "-");
 //        cleanedString = cleanedString.replaceAll("\\&nbsp;", " ");
         cleanedString = cleanedString.replaceAll("\\&[^\\&]*;", " ");
 
-        cleanedString = cleanedString.replaceAll("[^a-zA-Z0-9\\.\\,\\-\\;]", " ");
+        cleanedString = cleanedString.replaceAll("[^a-zA-Z0-9\\.\\,\\-\\;']", " ");
         cleanedString = cleanedString.replaceAll("\\s+", " ");
         cleanedString = cleanedString.replaceAll(" ([\\.\\,\\;])", "$1");
         return cleanedString;
