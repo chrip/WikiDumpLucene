@@ -55,7 +55,7 @@ public class MakeLuceneIndex {
 		String baseDir = "/home/chrisschaefer/";
 		//String wikiDumpFile = "Downloads/enwiki-20130604-pages-articles.xml.bz2";
 		String wikiDumpFile = "Downloads/enwiki-20130604-pages-articlese.xml.bz2";
-		String luceneIndexName = "enwiki-20130604-lucene-no-stubs-test";
+		String luceneIndexName = "enwiki-20130604-lucene";
 
 		System.currentTimeMillis();
 		boolean bIgnoreStubs = true;
@@ -82,7 +82,6 @@ public class MakeLuceneIndex {
 		System.out.println("Indexing to directory '" + baseDir + luceneIndexName + "'");
 
 		Date start = new Date();
-		logger.println(start.toString() + " iArticleCount: 0 iSkippedPageCount: 0");
 
 		try {
 
@@ -96,7 +95,7 @@ public class MakeLuceneIndex {
 			// Create a new index in the directory, removing any
 			// previously indexed documents:
 			iwc.setOpenMode(OpenMode.CREATE);
-
+			iwc.setSimilarity(new ESASimilarity());
 
 			// Optional: for better indexing performance, if you
 			// are indexing many documents, increase the RAM
@@ -157,7 +156,7 @@ public class MakeLuceneIndex {
 
 				if ( iArticleCount % 1000 == 0 )
 				{
-					logger.println(new Date().toString() + "phase 1 -- iArticleCount: " + iArticleCount + " iSkippedPageCount: " + iSkippedPageCount);                          
+					logger.println(new Date().toString() + " phase 1 -- iArticleCount: " + iArticleCount + " iSkippedPageCount: " + iSkippedPageCount);                          
 				}
 			}
 			artikelTextWriter.close();
@@ -168,7 +167,8 @@ public class MakeLuceneIndex {
 			String line = br.readLine();
 
 			while (line != null) {
-				String title = line.substring(0, line.indexOf("\t"));        	  
+				int endOfTitle = line.indexOf("\t");
+				String title = line.substring(0, endOfTitle);        	  
 				if( _inLinks.containsKey(title)){
 					int inlinks = _inLinks.get(title);
 					artikelInLinkWriter.println(title + "\t" + inlinks);
@@ -183,14 +183,24 @@ public class MakeLuceneIndex {
 
 						// doc.add( new TextField( "title", wikidumpExtractor.getPageTitle( false ), Field.Store.YES) );
 						//doc.add(new LongField("wiki_id", wikidumpExtractor.getPageId(), Field.Store.YES));
-						doc.add(new TextField("contents", line, Field.Store.NO ));
+						doc.add(new TextField("contents", 
+								title + " " + 
+								title + " " + 
+								title + " " + 
+								title + " " +
+								line.substring(endOfTitle+1), Field.Store.NO ));
+						System.out.println(title + " " + 
+								title + " " + 
+								title + " " + 
+								title + " " +
+								line.substring(endOfTitle+1));
 
 						writer.addDocument( doc );              
 
 						if ( iArticleCount % 1000 == 0 )
 						{
 							writer.commit();
-							logger.println(new Date().toString() + "phase 2 -- iArticleCount: " + iArticleCount + " iSkippedPageCount: " + iSkippedPageCount);                          
+							logger.println(new Date().toString() + " phase 2 -- iArticleCount: " + iArticleCount + " iSkippedPageCount: " + iSkippedPageCount);                          
 						} 
 					}
 				}

@@ -98,8 +98,10 @@ public class MakeLuceneIndexPreprocessed {
 			// size to the JVM (eg add -Xmxm or -Xmx1g):
 			//
 			iwc.setRAMBufferSizeMB(2000.0);
-
+			iwc.setSimilarity(new ESASimilarity());
+			
 			IndexWriter writer = new IndexWriter(dir, iwc);
+			
 
 			int iArticleCount = 0;
 			int iSkippedPageCount = 0;

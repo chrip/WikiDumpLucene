@@ -202,7 +202,7 @@ public class Extractor {
 
         _currentPageText = _currentPageSource.substring(iStartIndex, iEndIndex);
         String[] words = _whiteSpaceRegEx.split(_currentPageText);
-        if(words.length < 100) {
+        if(words.length < 150) {
         	_currentPageText = "";
         }
         // find the the external links section, and cut it away
@@ -295,19 +295,19 @@ public class Extractor {
         cleanedString = cleanedString.replaceAll("\\[\\[[^\\]]+:[^\\]]+\\]\\]", " ");
 
         // references ...
-        cleanedString = cleanedString.replaceAll("\\&lt;ref", "<<<<<");
-        cleanedString = cleanedString.replaceAll("/ref\\&gt;", ">>>>>");
+//        cleanedString = cleanedString.replaceAll("\\&lt;ref", "<<<<<");
+//        cleanedString = cleanedString.replaceAll("/ref\\&gt;", ">>>>>");
 
         // math ...
-        cleanedString = cleanedString.replaceAll("<math>", "<<<<<");
-        cleanedString = cleanedString.replaceAll("</math>", ">>>>>");
+//        cleanedString = cleanedString.replaceAll("<math>", "<<<<<");
+//        cleanedString = cleanedString.replaceAll("</math>", ">>>>>");
 
         // html tags ...
-        cleanedString = cleanedString.replaceAll("\\&lt;", "<<<<<");
-        cleanedString = cleanedString.replaceAll("\\&gt;", ">>>>>");
+     //   cleanedString = cleanedString.replaceAll("\\&lt;(?!.*\\&gt;).*\\&gt;", " ");
+//        cleanedString = cleanedString.replaceAll("\\&gt;", ">>>>>");
 
         // ... and remove 'em
-        cleanedString = cleanedString.replaceAll("<<<<<[^>>>>>]*>>>>>", " ");
+//        cleanedString = cleanedString.replaceAll("<<<<<[^>>>>>]*>>>>>", " ");
 
         // replace [[word|link]] with link
         cleanedString = cleanedString.replaceAll("\\[\\[[^\\]]+\\|([^\\]]+)\\]\\]", " $1 ");
@@ -326,19 +326,22 @@ public class Extractor {
 //        cleanedString = cleanedString.replaceAll("====", " ");
 //        cleanedString = cleanedString.replaceAll("===", " ");
 //        cleanedString = cleanedString.replaceAll("==", " ");
-        cleanedString = cleanedString.replaceAll("'''''", " ");
-        cleanedString = cleanedString.replaceAll("''''", " ");
-        cleanedString = cleanedString.replaceAll("'''", " ");
-        cleanedString = cleanedString.replaceAll("''", " ");
-        cleanedString = cleanedString.replaceAll("\\&quot;", "\"");
+//        cleanedString = cleanedString.replaceAll("'''''", " ");
+//        cleanedString = cleanedString.replaceAll("''''", " ");
+//        cleanedString = cleanedString.replaceAll("'''", " ");
+//        cleanedString = cleanedString.replaceAll("''", " ");
+        cleanedString = cleanedString.replaceAll("\\&quot;", " ");
 //        cleanedString = cleanedString.replaceAll("\\&amp;", " and ");
-        cleanedString = cleanedString.replaceAll("\\&ndash;", "-");
+        cleanedString = cleanedString.replaceAll("\\&ndash;", " ");
 //        cleanedString = cleanedString.replaceAll("\\&nbsp;", " ");
         cleanedString = cleanedString.replaceAll("\\&[^\\&]*;", " ");
 
-        cleanedString = cleanedString.replaceAll("[^a-zA-Z0-9\\.\\,\\-\\;']", " ");
+        cleanedString = cleanedString.replaceAll("[^\\w]", " ");
+        cleanedString = cleanedString.replaceAll("\\b\\w{1,2}\\b", " ");
         cleanedString = cleanedString.replaceAll("\\s+", " ");
-        cleanedString = cleanedString.replaceAll(" ([\\.\\,\\;])", "$1");
+
+        String strTokenSplit = " \t\n\r`~!@#$%^&*()_=+|[;]{},./?<>:’\\\"";
+//        cleanedString = cleanedString.replaceAll(" ([\\.\\,\\;])", "$1");
         return cleanedString;
     }
 
@@ -742,6 +745,30 @@ public class Extractor {
 
             else if (_currentPageTitle.startsWith("Portal:"))
                 _currentPageType = PageType.PORTAL;
+            else if (_currentPageTitle.startsWith("Media:")
+            		|| _currentPageTitle.startsWith("User:")
+            		|| _currentPageTitle.startsWith("MediaWiki:")
+            		|| _currentPageTitle.startsWith("Help:")
+            		|| _currentPageTitle.startsWith("Book:")
+            		|| _currentPageTitle.startsWith("Education Program:")
+            		|| _currentPageTitle.startsWith("TimedText:")
+            		|| _currentPageTitle.startsWith("Module:")
+            		
+            		// discard articles in month_year (e.g. January 2002) format
+            		|| _currentPageTitle.matches("^(?:January|February|March|April|May|June|July|August|September|October|November|December) \\d{4}$")
+            		
+            		// discard articles in year_in… (e.g. 2002 in literature, 1996 in the Olympics) format
+            		|| _currentPageTitle.matches("^\\d{4} in")
+            		
+            		// discard articles in only digit format (e.g. 1996, 819382, 42)
+            		|| _currentPageTitle.matches("^\\d+$")
+            		
+            		// discard articles in list format (e.g. List of ... )
+            		|| _currentPageTitle.startsWith("List of")
+            		)
+            {
+                _currentPageType = PageType.UNKNOWN;
+            }
 
             else if (_currentPageTitle.endsWith("(disambiguation)") || _currentPageSource.contains("{{disambig}}") || _currentPageSource.contains("{{Disambig}}"))
                 _currentPageType = PageType.DISAMBIGUATION;
