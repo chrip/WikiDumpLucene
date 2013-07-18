@@ -50,8 +50,8 @@ public class MakeLuceneIndexPreprocessed {
 	public static void main(String[] args) throws FileNotFoundException, UnsupportedEncodingException {
 		String baseDir = "/home/chrisschaefer/";
 
-		String inputLuceneIndexName = "enwiki-20130604-lucene-no-stubs-5-inlinks";
-		String luceneIndexName = "enwiki-20130604-lucene-no-stubs-custom-analyzer";
+		String inputLuceneIndexName = "2013-06-17-lucene";
+		String luceneIndexName = "2013-06-17-lucene-no-stemming";
 
 		System.currentTimeMillis();
 
@@ -116,11 +116,23 @@ public class MakeLuceneIndexPreprocessed {
 //				while(!title.equals(lineLinks.substring(0, lineLinks.indexOf("\t")))){
 //					lineLinks = artikelInLinksReader.readLine();
 //				}
+				int endOfTitle = lineText.indexOf("\t");
+				String title = lineText.substring(0, endOfTitle);      
+				
 				if(Integer.valueOf(lineLinks.substring(lineLinks.indexOf("\t")+1)) > 4){
 					++iArticleCount;
 					Document doc = new Document();
-					doc.add(new TextField("contents", lineText, Field.Store.NO ));
-
+					doc.add(new TextField("contents", 
+							title + " " + 
+							title + " " + 
+							title + " " + 
+							title + " " +
+							lineText.substring(endOfTitle+1), Field.Store.NO ));
+//					System.out.println(title + " " + 
+//					title + " " + 
+//					title + " " + 
+//					title + " " +
+//					lineText.substring(endOfTitle+1));
 					writer.addDocument( doc );              
 
 					if ( iArticleCount % 1000 == 0 )

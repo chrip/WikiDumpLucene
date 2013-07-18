@@ -54,11 +54,11 @@ public class MakeLuceneIndex {
 	public static void main(String[] args) throws FileNotFoundException, UnsupportedEncodingException {
 		String baseDir = "/home/chrisschaefer/";
 		//String wikiDumpFile = "Downloads/enwiki-20130604-pages-articles.xml.bz2";
-		String wikiDumpFile = "Downloads/enwiki-20130604-pages-articlese.xml.bz2";
-		String luceneIndexName = "enwiki-20130604-lucene";
+		String wikiDumpFile = "enwiki-20130604-pages-articlese.xml.bz2";
+		String luceneIndexName = "enwiki-20130604-lucene2";
 
 		System.currentTimeMillis();
-		boolean bIgnoreStubs = true;
+		boolean bIgnoreStubs = false;
 
 		for ( int i = 0; i < args.length; ++i )
 		{
@@ -72,7 +72,7 @@ public class MakeLuceneIndex {
 				wikiDumpFile = args[++i];
 
 			if ( args[i].equals( "-includestubs" ) )
-				bIgnoreStubs = false;
+				bIgnoreStubs = true;
 		}
 		String rawTextPath = baseDir + luceneIndexName + "-raw-text.txt";
 		String logPath = baseDir + luceneIndexName + ".log";
@@ -136,6 +136,11 @@ public class MakeLuceneIndex {
 					++iSkippedPageCount;
 					continue; 
 				}
+				if ( wikidumpExtractor.getPageCategories().equals("")) {
+					++iSkippedPageCount;
+					logger.println("skipped because of stop category: " + wikidumpExtractor.getPageTitle( false ));
+					continue; 
+				}
 				else {
 					for(String link: wikidumpExtractor.getPageLinkList(false)) {            		 
 						//            		  artikelTextWriter.println(link);
@@ -149,8 +154,11 @@ public class MakeLuceneIndex {
 						}
 					}
 				}
-				artikelTextWriter.println(wikidumpExtractor.getPageTitle( false ) + "\t" + wikidumpExtractor.getPageText());
-
+				if(wikidumpExtractor.getPageText().equals("")){
+					++iSkippedPageCount;
+					continue; 
+				}
+				artikelTextWriter.println(wikidumpExtractor.getPageTitle( false ) + "\t" + wikidumpExtractor.getPageText(false));
 
 				++iArticleCount;         
 
@@ -173,6 +181,7 @@ public class MakeLuceneIndex {
 					int inlinks = _inLinks.get(title);
 					artikelInLinkWriter.println(title + "\t" + inlinks);
 					if(inlinks > 4) {
+						//System.out.println("inlinks > 0 ");
 						Document doc = new Document();
 						++iArticleCount;
 
@@ -189,11 +198,11 @@ public class MakeLuceneIndex {
 								title + " " + 
 								title + " " +
 								line.substring(endOfTitle+1), Field.Store.NO ));
-						System.out.println(title + " " + 
-								title + " " + 
-								title + " " + 
-								title + " " +
-								line.substring(endOfTitle+1));
+//						System.out.println(title + " " + 
+//								title + " " + 
+//								title + " " + 
+//								title + " " +
+//								line.substring(endOfTitle+1));
 
 						writer.addDocument( doc );              
 

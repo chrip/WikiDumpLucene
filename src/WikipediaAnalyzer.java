@@ -22,9 +22,9 @@ public class WikipediaAnalyzer extends Analyzer {
         tok = new LengthFilter(false, tok, 3, 100);
         tok = new LowerCaseFilter(Version.LUCENE_43, tok);	    
 	    tok = new StopFilter(Version.LUCENE_43, tok, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-	    tok = new PorterStemFilter(tok);
-	    tok = new PorterStemFilter(tok);
-	    tok = new PorterStemFilter(tok);
+//	    tok = new PorterStemFilter(tok);
+//	    tok = new PorterStemFilter(tok);
+//	    tok = new PorterStemFilter(tok);
 	    return new TokenStreamComponents(src, tok);
 	  }
 }

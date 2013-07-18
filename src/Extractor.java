@@ -26,6 +26,10 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
@@ -86,7 +90,6 @@ public class Extractor {
     private String _categoryListSeparator = " ";
     private String _linkSeparator = "_";
     private String _linkListSeparator = " ";
-    private Pattern _whiteSpaceRegEx = Pattern.compile("\\s+");
     private String _dumpfileName;
     private BufferedReader _dumpfileReader;
 
@@ -201,10 +204,7 @@ public class Extractor {
             return;
 
         _currentPageText = _currentPageSource.substring(iStartIndex, iEndIndex);
-        String[] words = _whiteSpaceRegEx.split(_currentPageText);
-        if(words.length < 150) {
-        	_currentPageText = "";
-        }
+
         // find the the external links section, and cut it away
         iStartIndex = _currentPageText.indexOf("External Links");
         if (iStartIndex < 0)
@@ -221,6 +221,24 @@ public class Extractor {
         }
 
         _currentPageText = filterTags(_currentPageText);
+        
+        String[] words = _currentPageText.split(" ");
+        _currentPageText = "";
+        String space = " ";
+        Set<String> wordSet = new HashSet<String>(Arrays.asList(words));
+        for(String w : words) {
+        	w = w.toLowerCase();
+        	if(stopWordSet.contains(w)){
+        		wordSet.remove(w);
+        		continue;
+        	}
+        	_currentPageText += space;
+        	_currentPageText += w;
+        }        
+        if(wordSet.size() < 100) {
+        	_currentPageText = "";
+        	return;
+        }
     }
 
     /**
@@ -340,7 +358,7 @@ public class Extractor {
         cleanedString = cleanedString.replaceAll("\\b\\w{1,2}\\b", " ");
         cleanedString = cleanedString.replaceAll("\\s+", " ");
 
-        String strTokenSplit = " \t\n\r`~!@#$%^&*()_=+|[;]{},./?<>:’\\\"";
+//        String strTokenSplit = " \t\n\r`~!@#$%^&*()_=+|[;]{},./?<>:’\\\"";
 //        cleanedString = cleanedString.replaceAll(" ([\\.\\,\\;])", "$1");
         return cleanedString;
     }
@@ -570,7 +588,11 @@ public class Extractor {
                 category = category.substring(0, category.indexOf("#"));
             else if (category.contains("|"))
                 category = category.substring(0, category.indexOf("|"));
-
+            if (stopCategoriesSet.contains(category)) {
+            	_currentPageCategories.clear();
+            	return;
+            }
+            
             _currentPageCategories.add(category);
         }
     }
@@ -758,7 +780,7 @@ public class Extractor {
             		|| _currentPageTitle.matches("^(?:January|February|March|April|May|June|July|August|September|October|November|December) \\d{4}$")
             		
             		// discard articles in year_in… (e.g. 2002 in literature, 1996 in the Olympics) format
-            		|| _currentPageTitle.matches("^\\d{4} in")
+            		|| _currentPageTitle.matches("^\\d{4} in .*")
             		
             		// discard articles in only digit format (e.g. 1996, 819382, 42)
             		|| _currentPageTitle.matches("^\\d+$")
@@ -907,4 +929,101 @@ public class Extractor {
     public String getLinkListSeparator() {
         return _linkListSeparator;
     }
+    
+    public static final String[] stopCategories = new String[] {
+    "Star name disambiguations"
+    ,"America"
+    ,"Disambiguation"
+    ,"Georgia"
+    ,"Lists of political parties by generic name"
+    ,"Galaxy name disambiguations"
+    ,"Lists of two-letter combinations"
+    ,"Disambiguation categories"
+    ,"Towns in Italy (disambiguation)"
+    ,"Redirects to disambiguation pages"
+    ,"Birmingham"
+    ,"Mathematical disambiguation"
+    ,"Public schools in Montgomery County"
+    ,"Structured lists"
+    ,"Identical titles for unrelated songs"
+    ,"Signpost articles"
+    ,"Township disambiguation"
+    ,"County disambiguation"
+    ,"Disambiguation pages in need of cleanup"
+    ,"Human name disambiguation"
+    ,"Number disambiguations"
+    ,"Letter and number combinations"
+    ,"4-letter acronyms"
+    ,"Acronyms that may need to be disambiguated"
+    ,"Lists of roads sharing the same title"
+    ,"List disambiguations"
+    ,"3-digit Interstate disambiguations"
+    ,"Geographical locations sharing the same title"
+    ,"Tropical cyclone disambiguation"
+    ,"Repeat-word disambiguations"
+    ,"Song disambiguations"
+    ,"Disambiguated phrases"
+    ,"Subway station disambiguations"
+    ,"Lists of identical but unrelated album titles"
+    ,"5-letter acronyms"
+    ,"Three-letter acronym disambiguations"
+    ,"Miscellaneous disambiguations"
+    ,"Two-letter acronym disambiguations"
+    ,"Days"
+    ,"Eastern Orthodox liturgical days"
+    };
+    public static final Set<String> stopCategoriesSet = new HashSet<String>(Arrays.asList(stopCategories));
+    public static final String[] stopWords = new String[] { 
+       "able","about","above","according","accordingly","across","actually","after","afterwards","again"
+		,"against","ain","albeit","all","allow","allows","almost","alone","along","already"
+		,"also","although","always","among","amongst","and","another","any","anybody","anyhow"
+		,"anyone","anything","anyway","anyways","anywhere","apart","appear","appreciate","appropriate","are"
+		,"aren","around","aside","ask","asking","associated","available","away","awfully","became"
+		,"because","become","becomes","becoming","been","before","beforehand","behind","being","believe"
+		,"below","beside","besides","best","better","between","beyond","both","brief","but"
+		,"mon","came","can","can","cannot","cant","cause","causes","certain","certainly"
+		,"changes","clearly","com","come","comes","concerning","consequently","consider","considering","contain"
+		,"containing","contains","corresponding","could","couldn","course","currently","definitely","described","despite"
+		,"did","didn","different","does","doesn","doing","don","done","down","downwards"
+		,"during","each","edu","eight","either","else","elsewhere","enough","entirely","especially"
+		,"etc","even","ever","every","everybody","everyone","everything","everywhere","exactly","example"
+		,"except","far","few","fifth","first","five","followed","following","follows","for"
+		,"former","formerly","forth","four","from","further","furthermore","get","gets","getting"
+		,"given","gives","goes","going","gone","got","gotten","greetings","had","hadn"
+		,"happens","hardly","has","hasn","have","haven","having","hello","help","hence"
+		,"her","here","here","hereafter","hereby","herein","hereupon","hers","herself","him"
+		,"himself","his","hither","hopefully","how","howbeit","however","ignored","immediate","inasmuch"
+		,"inc","indeed","indicate","indicated","indicates","inner","insofar","instead","into","inward"
+		,"isn","its","itself","just","keep","keeps","kept","know","known","knows"
+		,"last","lately","later","latter","latterly","least","less","lest","let","like"
+		,"liked","likely","little","look","looking","looks","ltd","mainly","many","may"
+		,"maybe","mean","meanwhile","merely","might","more","moreover","most","mostly","much"
+		,"must","myself","name","namely","near","nearly","necessary","need","needs","neither"
+		,"never","nevertheless","new","next","nine","nobody","non","none","noone","nor"
+		,"normally","not","nothing","novel","now","nowhere","obviously","off","often","okay"
+		,"old","once","one","ones","only","onto","other","others","otherwise","ought"
+		,"our","ours","ourselves","out","outside","over","overall","own","particular","particularly"
+		,"per","perhaps","placed","please","plus","possible","presumably","probably","provides","que"
+		,"quite","rather","really","reasonably","regarding","regardless","regards","relatively","respectively","right"
+		,"said","same","saw","say","saying","says","second","secondly","see","seeing"
+		,"seem","seemed","seeming","seems","seen","self","selves","sensible","sent","serious"
+		,"seriously","seven","several","shall","she","should","shouldn","since","six","some"
+		,"somebody","somehow","someone","something","sometime","sometimes","somewhat","somewhere","soon","sorry"
+		,"specified","specify","specifying","still","sub","such","sup","sure","take","taken"
+		,"tell","tends","than","thank","thanks","thanx","that","that","thats","the"
+		,"their","theirs","them","themselves","then","thence","there","there","thereafter","thereby"
+		,"therefore","therein","theres","thereupon","these","they","think","third","this","thorough"
+		,"thoroughly","those","though","three","through","throughout","thru","thus","together","too"
+		,"took","toward","towards","tried","tries","truly","try","trying","twice","two"
+		,"under","unfortunately","unless","unlikely","until","unto","upon","use","used","useful"
+		,"uses","using","usually","uucp","value","various","very","via","viz","want"
+		,"wants","was","wasn","way","welcome","well","went","were","weren","what"
+		,"whatever","whatsoever","when","whence","whenever","whensoever","where","where","whereafter","whereas"
+		,"whereat","whereby","wherefrom","wherein","whereinto","whereof","whereon","whereto","whereunto","whereupon"
+		,"wherever","wherewith","whether","which","whichever","whichsoever","while","whilst","whither","who"
+		,"whoever","whole","whom","whomever","whomsoever","whose","whosoever","why","will","willing"
+		,"wish","with","within","without","won","wonder","would","wouldn","yes","yet"
+		,"you","your","yours","yourself","yourselves","zero", "ref"
+	};
+    public static final Set<String> stopWordSet = new HashSet<String>(Arrays.asList(stopWords));
 }

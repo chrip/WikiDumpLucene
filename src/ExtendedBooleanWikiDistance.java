@@ -2,25 +2,15 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.StringReader;
-
 import org.apache.lucene.analysis.Analyzer;
-
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocsEnum;
-import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.queryparser.classic.Token;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
@@ -28,16 +18,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
-import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 
-import org.apache.commons.math3.stat.correlation.PearsonsCorrelation;
 import org.apache.commons.math3.stat.correlation.SpearmansCorrelation;
 
 
@@ -46,7 +31,7 @@ import org.apache.commons.math3.stat.correlation.SpearmansCorrelation;
 public class ExtendedBooleanWikiDistance {
 
 	static String field = "contents";
-	static String indexPath = "/home/chrisschaefer/enwiki-20130604-lucene-no-stubs-custom-analyzer";
+	static String indexPath = "/home/chrisschaefer/2013-06-17-lucene-no-stemming";
 	static String wordsim353Path = "/home/chrisschaefer/Arbeitsfläche/github/wikiprep-esa/esa-lucene/src/config/wordsim353-combined.tab";
 	static IndexReader reader;
 	static IndexSearcher searcher;
@@ -54,8 +39,8 @@ public class ExtendedBooleanWikiDistance {
 	static QueryParser parser;
 	static QueryParser parserTitle;
 	static boolean useWikiDistance = false;
-	static boolean useExtendedWikiDistance = false;
-	static boolean useCosineDistance = true;
+	static boolean useExtendedWikiDistance = true;
+	static boolean useCosineDistance = false;
 	static boolean useScoredDistance = false;
 	static ESASimilarity esaSimilarity;
 	static double threshold = 0.1;
@@ -101,51 +86,7 @@ public class ExtendedBooleanWikiDistance {
 		searcher = new IndexSearcher(reader);
 		esaSimilarity = new ESASimilarity();
 		searcher.setSimilarity(esaSimilarity);
-		//
-		//			@Override
-		//			public float coord(int arg0, int arg1) {
-		//				// TODO Auto-generated method stub
-		//				return 1;
-		//			}
-		//
-		//			@Override
-		//			public float lengthNorm(FieldInvertState arg0) {
-		//				// TODO Auto-generated method stub
-		//				return 1;
-		//			}
-		//
-		//			@Override
-		//			public float queryNorm(float arg0) {
-		//				// TODO Auto-generated method stub
-		//				return 1;
-		//			}
-		//
-		//			@Override
-		//			public float scorePayload(int arg0, int arg1, int arg2,
-		//					BytesRef arg3) {
-		//				// TODO Auto-generated method stub
-		//				return 1;
-		//			}
-		//
-		//			@Override
-		//			public float sloppyFreq(int arg0) {
-		//				// TODO Auto-generated method stub
-		//				return 1;
-		//			}
-		//
-		//			@Override
-		//			public float tf(float freq) {
-		//				// TODO Auto-generated method stub
-		//				return (float) Math.sqrt(freq);
-		//			}
-		//
-		//			@Override
-		//			public float idf(long docFreq,
-		//			        long numDocs) {
-		//				// TODO Auto-generated method stub
-		//				return (float) (Math.log(numDocs/(docFreq+1)) + 1);
-		//			}
-		//		} );
+
 
 		analyzer = new WikipediaAnalyzer();
 		parser = new QueryParser(Version.LUCENE_43, field, analyzer);
@@ -153,7 +94,7 @@ public class ExtendedBooleanWikiDistance {
 
 		double maxPc = 0, maxTfidfThres = 0, maxFreqThres = 0, maxCorrelation = 0;
 		
-		for(tfidfThreshold = 9; tfidfThreshold < 10; tfidfThreshold+=0.01) {
+		for(tfidfThreshold = 9; tfidfThreshold < 11; tfidfThreshold+=0.1) {
 		//	for(freqThreshold = 1;freqThreshold < 10; freqThreshold++) {
 				//parserTitle = new QueryParser(Version.LUCENE_43, "title", analyzer);
 				String line;
@@ -176,6 +117,7 @@ public class ExtendedBooleanWikiDistance {
 					else if(useCosineDistance) {
 						//yArray[i] = cosineDistance(parts[0], parts[1]);
 						yArray[i] = GabrilovichEtAl(parts[0], parts[1]);
+						//yArray[i] = ExtendedBooleanGabrilovichEtAl(parts[0], parts[1]);
 					}
 					else if(useExtendedWikiDistance) {
 						yArray[i] = extendedBooleanWikipediaDistance(parts[0], parts[1]);
@@ -210,18 +152,14 @@ public class ExtendedBooleanWikiDistance {
 	public static double wikipediaDistance(String term0, String term1) throws ParseException, IOException {
 
 		Query query0 = parser.parse(term0);
-		Query queryTitle0 = parserTitle.parse(term0);
 		Query query1 = parser.parse(term1);
-		Query queryTitle1 = parserTitle.parse(term1);
 
 		BooleanQuery combiQuery0 = new BooleanQuery();
-		combiQuery0.add(query0, BooleanClause.Occur.SHOULD);
-		combiQuery0.add(queryTitle0, BooleanClause.Occur.SHOULD);		
+		combiQuery0.add(query0, BooleanClause.Occur.MUST);
 		TopDocs results0 = searcher.search(combiQuery0, 1);
 
 		BooleanQuery combiQuery1 = new BooleanQuery();
-		combiQuery1.add(query1, BooleanClause.Occur.SHOULD);
-		combiQuery1.add(queryTitle1, BooleanClause.Occur.SHOULD);		
+		combiQuery1.add(query1, BooleanClause.Occur.MUST);
 		TopDocs results1 = searcher.search(combiQuery1, 1);
 
 		BooleanQuery query0AND1 = new BooleanQuery();
@@ -229,7 +167,10 @@ public class ExtendedBooleanWikiDistance {
 		query0AND1.add(combiQuery1, BooleanClause.Occur.MUST);
 
 		TopDocs results0AND1 = searcher.search(query0AND1, 1);
-
+		
+		if(results0.totalHits < 1 || results0.totalHits < 1|| results0AND1.totalHits < 1) {
+			return 5;
+		}
 
 		double log0, log1 , logCommon, maxlog, minlog;
 		log0 = Math.log(results0.totalHits);
@@ -475,9 +416,9 @@ public class ExtendedBooleanWikiDistance {
 		int docFreq0 = reader.docFreq(t0);
 		int docFreq1 = reader.docFreq(t1);
 
-		//			if (docFreq < 3){
-			//				continue;
-			//			}
+		if (docFreq0 < 3 || docFreq1 < 3){
+			return 0.5;
+		}
 
 
 		double idf0 = esaSimilarity.idf(docFreq0, totalDocs);
@@ -549,6 +490,114 @@ public class ExtendedBooleanWikiDistance {
 			return 0;
 		}
 		return scalar / (r0Norm * r1Norm); 
+	}
+	
+	public static double ExtendedBooleanGabrilovichEtAl(String term0, String term1) throws ParseException, IOException {
+
+		Query query0 = parser.parse(term0);
+		Query query1 = parser.parse(term1);		
+
+		AtomicReader ar = reader.leaves().get(0).reader();	
+
+		int totalDocs = reader.numDocs();
+		String s = new String();
+		int o = 0;	
+
+		String term0Parsed = query0.toString();
+		String term1Parsed = query1.toString();
+		if (term0Parsed.equals("") || term1Parsed.equals("")) {
+			return 0;
+		}
+
+		Term t0 = new Term(field, term0Parsed.substring(field.length()+1));
+		Term t1 = new Term(field, term1Parsed.substring(field.length()+1));
+		int docFreq0 = reader.docFreq(t0);
+		int docFreq1 = reader.docFreq(t1);
+
+		if (docFreq0 < 3 || docFreq1 < 3){
+			return 0.5;
+		}
+
+
+		double idf0 = esaSimilarity.idf(docFreq0, totalDocs);
+		double idf1 = esaSimilarity.idf(docFreq1, totalDocs);
+
+		DocsEnum docEnum0 = ar.termDocsEnum(t0);
+		DocsEnum docEnum1 = ar.termDocsEnum(t1);
+		int docid0 = docEnum0.nextDoc();
+		int docid1 = docEnum1.nextDoc();
+
+		double scalar = 0.0, r0Norm=0.0, r1Norm=0.0;
+				
+		while (docid0 != DocsEnum.NO_MORE_DOCS && docid1 != DocsEnum.NO_MORE_DOCS) {
+
+			double tfidf0 = esaSimilarity.tf(docEnum0.freq()) * idf0;
+			double tfidf1 = esaSimilarity.tf(docEnum1.freq()) * idf1;
+
+			if (docFreq0 < freqThreshold || tfidf0 < tfidfThreshold){
+				tfidf0 = 0;
+			}
+			if (docFreq1 < freqThreshold || tfidf1 < tfidfThreshold){
+				tfidf1 = 0;
+			}
+			
+			if (docid0 < docid1) {
+				r0Norm += tfidf0;
+				docid0 = docEnum0.nextDoc();
+			}
+			else if (docid0 == docid1) {
+				scalar += tfidf0 * tfidf1;
+				r0Norm += tfidf0;
+				r1Norm += tfidf1;
+				docid0 = docEnum0.nextDoc();
+				docid1 = docEnum1.nextDoc();
+			}
+			else {
+				r1Norm += tfidf1;
+				docid1 = docEnum1.nextDoc();
+			}
+			//			 if(tfidf0 > 10) {
+				//				 o++;
+				//				 s += "\t" + docid0 + "\t" + tfidf0;
+				//			 }
+		}
+		while (docid0 != DocsEnum.NO_MORE_DOCS) {
+			double tfidf0 = esaSimilarity.tf(docEnum0.freq()) * idf0;
+
+			if (docFreq0 < freqThreshold || tfidf0 < tfidfThreshold){
+				tfidf0 = 0;
+			}
+			r0Norm += tfidf0;
+			docid0 = docEnum0.nextDoc();
+
+		}
+		while (docid1 != DocsEnum.NO_MORE_DOCS) {
+
+			double tfidf1 = esaSimilarity.tf(docEnum1.freq()) * idf1;
+			if (docFreq1 < freqThreshold || tfidf1 < tfidfThreshold){
+				tfidf1 = 0;
+			}
+			r1Norm += Math.pow(tfidf1, 2);
+			docid1 = docEnum1.nextDoc();
+		}
+		//		System.out.println(t0.text() + "\t" + o + "\t" + s);
+		//scalar=Math.sqrt(r0Norm);
+//		r0Norm=Math.sqrt(r0Norm);
+//		r1Norm=Math.sqrt(r1Norm);
+
+		//return scalar / (r0Norm * r1Norm); 
+	    if(r0Norm == 0 || r1Norm == 0){
+			return 0.5;
+		}
+		double log0, log1 , logCommon, maxlog, minlog;
+
+		log0 = Math.log(r0Norm);
+		log1 = Math.log(r1Norm);	
+		logCommon = Math.log(scalar);
+		maxlog = Math.max(log0, log1);
+		minlog = Math.min(log0, log1);
+
+		return (maxlog - logCommon) / (Math.log(reader.numDocs()) - minlog); 
 	}
 }
 
