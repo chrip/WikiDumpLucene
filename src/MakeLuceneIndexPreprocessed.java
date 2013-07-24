@@ -17,6 +17,7 @@
  */
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
@@ -50,8 +51,8 @@ public class MakeLuceneIndexPreprocessed {
 	public static void main(String[] args) throws FileNotFoundException, UnsupportedEncodingException {
 		String baseDir = "/home/chrisschaefer/";
 
-		String inputLuceneIndexName = "2013-06-17-lucene";
-		String luceneIndexName = "2013-06-17-lucene-no-stemming";
+		String inputLuceneIndexName = "2013-06-18-lucene-gab";
+		String luceneIndexName = "2013-06-18-lucene-gab-standard";
 
 		System.currentTimeMillis();
 
@@ -83,7 +84,8 @@ public class MakeLuceneIndexPreprocessed {
 
 			Directory dir = FSDirectory.open(new File(baseDir + luceneIndexName));
 
-			Analyzer analyzer = new WikipediaAnalyzer();
+//			Analyzer analyzer = new WikipediaAnalyzer();
+			Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_43);
 			IndexWriterConfig iwc = new IndexWriterConfig(Version.LUCENE_43, analyzer);
 
 
@@ -98,7 +100,7 @@ public class MakeLuceneIndexPreprocessed {
 			// size to the JVM (eg add -Xmxm or -Xmx1g):
 			//
 			iwc.setRAMBufferSizeMB(2000.0);
-			iwc.setSimilarity(new ESASimilarity());
+//			iwc.setSimilarity(new ESASimilarity());
 			
 			IndexWriter writer = new IndexWriter(dir, iwc);
 			
@@ -119,7 +121,7 @@ public class MakeLuceneIndexPreprocessed {
 				int endOfTitle = lineText.indexOf("\t");
 				String title = lineText.substring(0, endOfTitle);      
 				
-				if(Integer.valueOf(lineLinks.substring(lineLinks.indexOf("\t")+1)) > 4){
+				if(Integer.valueOf(lineLinks.substring(lineLinks.indexOf("\t")+1)) > 0){
 					++iArticleCount;
 					Document doc = new Document();
 					doc.add(new TextField("contents", 

@@ -89,6 +89,7 @@ public class MakeLuceneIndex {
 
 
 			Analyzer analyzer = new WikipediaAnalyzer();
+//			Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_43);
 			IndexWriterConfig iwc = new IndexWriterConfig(Version.LUCENE_43, analyzer);
 
 

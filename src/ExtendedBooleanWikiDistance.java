@@ -3,6 +3,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.DirectoryReader;
@@ -20,6 +21,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
 
@@ -31,7 +33,9 @@ import org.apache.commons.math3.stat.correlation.SpearmansCorrelation;
 public class ExtendedBooleanWikiDistance {
 
 	static String field = "contents";
-	static String indexPath = "/home/chrisschaefer/2013-06-17-lucene-no-stemming";
+//	static String indexPath = "/home/chrisschaefer/2013-06-18-lucene-gab-standard";
+	static String indexPath = "/home/chrisschaefer/Downloads/wikipedia-051105-preprocessed";
+//	static String indexPath = "/home/chrisschaefer/2013-06-17-lucene";
 	static String wordsim353Path = "/home/chrisschaefer/Arbeitsfläche/github/wikiprep-esa/esa-lucene/src/config/wordsim353-combined.tab";
 	static IndexReader reader;
 	static IndexSearcher searcher;
@@ -39,11 +43,12 @@ public class ExtendedBooleanWikiDistance {
 	static QueryParser parser;
 	static QueryParser parserTitle;
 	static boolean useWikiDistance = false;
-	static boolean useExtendedWikiDistance = true;
-	static boolean useCosineDistance = false;
+	static boolean useExtendedWikiDistance = false;
+	static boolean useCosineDistance = true;
 	static boolean useScoredDistance = false;
 	static ESASimilarity esaSimilarity;
-	static double threshold = 0.1;
+//	static DefaultSimilarity esaSimilarity;
+
 	static double tfidfThreshold = 9.28;
 	static int freqThreshold = 1;
 	/**
@@ -84,17 +89,19 @@ public class ExtendedBooleanWikiDistance {
 
 		reader = DirectoryReader.open(FSDirectory.open(new File(indexPath)));
 		searcher = new IndexSearcher(reader);
+//		esaSimilarity = new DefaultSimilarity();
 		esaSimilarity = new ESASimilarity();
 		searcher.setSimilarity(esaSimilarity);
 
 
-		analyzer = new WikipediaAnalyzer();
+		Analyzer analyzer = new WikipediaAnalyzer();
+//		Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_43);
 		parser = new QueryParser(Version.LUCENE_43, field, analyzer);
 
 
 		double maxPc = 0, maxTfidfThres = 0, maxFreqThres = 0, maxCorrelation = 0;
 		
-		for(tfidfThreshold = 9; tfidfThreshold < 11; tfidfThreshold+=0.1) {
+		for(tfidfThreshold = 0; tfidfThreshold < 10; tfidfThreshold+=1) {
 		//	for(freqThreshold = 1;freqThreshold < 10; freqThreshold++) {
 				//parserTitle = new QueryParser(Version.LUCENE_43, "title", analyzer);
 				String line;
@@ -115,9 +122,9 @@ public class ExtendedBooleanWikiDistance {
 						yArray[i] = wikipediaDistance(parts[0], parts[1]);
 					}
 					else if(useCosineDistance) {
-						//yArray[i] = cosineDistance(parts[0], parts[1]);
-						yArray[i] = GabrilovichEtAl(parts[0], parts[1]);
-						//yArray[i] = ExtendedBooleanGabrilovichEtAl(parts[0], parts[1]);
+						yArray[i] = cosineDistance(parts[0], parts[1]);
+//						yArray[i] = GabrilovichEtAl(parts[0], parts[1]);
+//						yArray[i] = ExtendedBooleanGabrilovichEtAl(parts[0], parts[1]);
 					}
 					else if(useExtendedWikiDistance) {
 						yArray[i] = extendedBooleanWikipediaDistance(parts[0], parts[1]);
@@ -131,7 +138,7 @@ public class ExtendedBooleanWikiDistance {
 				br.close();
 				SpearmansCorrelation sc = new SpearmansCorrelation();
 				double co = sc.correlation(xArray, yArray);
-				if(co > maxCorrelation) {
+				if(Math.abs(co) > Math.abs(maxCorrelation)) {
 					maxFreqThres = freqThreshold;
 					maxTfidfThres = tfidfThreshold;
 					maxCorrelation = co;
@@ -292,10 +299,10 @@ public class ExtendedBooleanWikiDistance {
 			double score0 = results0.scoreDocs[i].score/maxScore0;
 			double score1 = results1.scoreDocs[j].score/maxScore1;
 
-			if(score0 < threshold) {
+			if(score0 < tfidfThreshold) {
 				score0 = 0.0;	        	
 			}
-			if(score1 < threshold) {
+			if(score1 < tfidfThreshold) {
 				score1 = 0.0;
 			}
 			if (results0.scoreDocs[i].doc < results1.scoreDocs[j].doc) {
@@ -316,7 +323,7 @@ public class ExtendedBooleanWikiDistance {
 		}
 		while (i < results0.scoreDocs.length) {
 			double score0 = results0.scoreDocs[i].score/maxScore0;
-			if(score0 < threshold) {
+			if(score0 < tfidfThreshold) {
 				score0 = 0.0;	        	
 			}
 			r0Norm += Math.pow(score0, 2);
@@ -325,7 +332,7 @@ public class ExtendedBooleanWikiDistance {
 		}
 		while (j < results1.scoreDocs.length) {
 			double score1 = results1.scoreDocs[j].score/maxScore1;
-			if(score1 < threshold) {
+			if(score1 < tfidfThreshold) {
 				score1 = 0.0;
 			}
 			r1Norm += Math.pow(score1, 2);
@@ -382,8 +389,10 @@ public class ExtendedBooleanWikiDistance {
 				i++;
 			}
 			else if (results0.scoreDocs[i].doc == results1.scoreDocs[j].doc) {
-				double sim1AND2 = (results0.scoreDocs[i].score/maxScore0)  * (results1.scoreDocs[j].score/maxScore1);
-				sum += sim1AND2;
+				if(results0.scoreDocs[i].score > tfidfThreshold/maxScore0 && results1.scoreDocs[j].score/maxScore1 > tfidfThreshold) {
+					double sim1AND2 = (results0.scoreDocs[i].score/maxScore0)  * (results1.scoreDocs[j].score/maxScore1);
+					sum += sim1AND2;
+				}
 				i++;
 				j++;
 			}
@@ -556,10 +565,6 @@ public class ExtendedBooleanWikiDistance {
 				r1Norm += tfidf1;
 				docid1 = docEnum1.nextDoc();
 			}
-			//			 if(tfidf0 > 10) {
-				//				 o++;
-				//				 s += "\t" + docid0 + "\t" + tfidf0;
-				//			 }
 		}
 		while (docid0 != DocsEnum.NO_MORE_DOCS) {
 			double tfidf0 = esaSimilarity.tf(docEnum0.freq()) * idf0;
@@ -577,15 +582,10 @@ public class ExtendedBooleanWikiDistance {
 			if (docFreq1 < freqThreshold || tfidf1 < tfidfThreshold){
 				tfidf1 = 0;
 			}
-			r1Norm += Math.pow(tfidf1, 2);
+			r1Norm += tfidf1;
 			docid1 = docEnum1.nextDoc();
 		}
-		//		System.out.println(t0.text() + "\t" + o + "\t" + s);
-		//scalar=Math.sqrt(r0Norm);
-//		r0Norm=Math.sqrt(r0Norm);
-//		r1Norm=Math.sqrt(r1Norm);
 
-		//return scalar / (r0Norm * r1Norm); 
 	    if(r0Norm == 0 || r1Norm == 0){
 			return 0.5;
 		}
