@@ -26,7 +26,7 @@ import org.apache.lucene.util.Version;
 public class GabToLucene {
 	static int inlinkThreshold = 0;
 	static int outlinkThreshold = 0;
-	static int numberOfUniqueNonStopwordsThreshold = 100;
+	static int numberOfUniqueNonStopwordsThreshold = 0;
 	static int minWordLengthThreshold = 0;
 	static int titleWeight = 4;
 	static boolean filterTitle = false;
@@ -36,54 +36,71 @@ public class GabToLucene {
 	public static void main(String[] args) throws IOException {
 		Date start = new Date();
 		
-		Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_43);
-//		Analyzer analyzer = new WikipediaAnalyzer();
+//		Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_43);
+		Analyzer analyzer = new WikipediaAnalyzer("/home/chrisschaefer/Arbeitsfläche/github/esalib/res/stopwords.en.txt");
 		IndexWriterConfig iwc = new IndexWriterConfig(Version.LUCENE_43, analyzer);
 
-//		iwc.setSimilarity(new ESASimilarity());
+		iwc.setSimilarity(new ESASimilarity());
 		iwc.setOpenMode(OpenMode.CREATE);
 		iwc.setRAMBufferSizeMB(2000.0);
-
-		Directory dir = FSDirectory.open(new File("/home/chrisschaefer/Downloads/wikipedia-051105-preprocessed-all"));
+		String indexPath = "/home/chrisschaefer/Downloads/wikipedia-gab-2013-07-29";
+		Directory dir = FSDirectory.open(new File(indexPath));
 		IndexWriter writer = new IndexWriter(dir, iwc);
 
 		String dumpFile = "/home/chrisschaefer/Arbeitsfläche/github/wikiprep-esa-original/data/20051105_pages_articles.hgw.xml";
+		String anchorFile = "/home/chrisschaefer/Arbeitsfläche/github/wikiprep-esa-original/data/20051105_pages_articles.anchor_text.sorted";
 //		String dumpFile = "/home/chrisschaefer/Arbeitsfläche/github/wikiprep-esa-original/data/sample.hgw.xml";
-		BufferedReader br = new BufferedReader(new FileReader(dumpFile));
+		BufferedReader br = new BufferedReader(new FileReader(anchorFile));
 		
-		
+		 br.readLine();
+		 br.readLine();
+		 br.readLine();
 		String line = br.readLine();
 		ArrayList<String> pageIds = new ArrayList<String>();
 		Map<String, Integer> inLinks = new HashMap<String, Integer>();
-		while ( line != null )
-		{
-			int endPageId = line.indexOf("\" orglength=\"");
-			if(endPageId != -1) {
-				pageIds.add(line.substring(10, endPageId));
-			}
-			else if (line.startsWith("<links>")){
-				String[] links = line.substring(7, line.length()-8).split(" ");
-				for(int i = 0; i < links.length; i++) {         		 
-					//            		  artikelTextWriter.println(link);
-					if(inLinks.containsKey(links[i])) {
-						int tmp = inLinks.get(links[i]);
-						tmp++;
-						inLinks.put(links[i], tmp);
-					}
-					else {
-						inLinks.put(links[i], 1);
-					}
-				}
-			}
-			line = br.readLine();
-		}
+		Map<String, ArrayList<String>> anchors = new HashMap<String, ArrayList<String>>();
+//		while ( line != null )
+//		{
+//			int endPageId = line.indexOf("\" orglength=\"");
+//			if(endPageId != -1) {
+//				pageIds.add(line.substring(10, endPageId));
+//			}
+//			else if (line.startsWith("<links>")){
+//				String[] links = line.substring(7, line.length()-8).split(" ");
+//				for(int i = 0; i < links.length; i++) {         		 
+//					//            		  artikelTextWriter.println(link);
+//					if(inLinks.containsKey(links[i])) {
+//						int tmp = inLinks.get(links[i]);
+//						tmp++;
+//						inLinks.put(links[i], tmp);
+//					}
+//					else {
+//						inLinks.put(links[i], 1);
+//					}
+//				}
+//			}
+//			line = br.readLine();
+//		}
 //		for(String id: pageIds){
 //			linkWriter.println(id  + "\t" + (inLinks.containsKey(id)?inLinks.get(id):"0"));
 //		}
+		while ( line != null ) {
+			String[] parts = line.split("\t");
+			if(anchors.containsKey(parts[0])) {
+				anchors.get(parts[0]).add(parts[2]);				
+			}
+			else {
+				ArrayList<String> s = new ArrayList<String>();
+				s.add(parts[2]);
+				anchors.put(parts[0], s);
+			}
+			line = br.readLine();
+		}
 		br.close();
 //		linkWriter.close();
 		Date end = new Date();
-		int totalArticles = pageIds.size();
+//		int totalArticles = pageIds.size();
+		int totalArticles = anchors.size();
 		double articlesDone = 0.0;
 
 		String endStatement = end.getTime() - start.getTime() + " total milliseconds (" + (end.getTime() - start.getTime())/3600000.0 + " hours), " + totalArticles + " Articles.";
@@ -99,19 +116,24 @@ public class GabToLucene {
 			if(endPageId != -1) {
 				String id = line.substring(10, endPageId);
 				articlesDone++;
-				if (inlinkThreshold != 0 || !inLinks.containsKey(id) || inLinks.get(id) < inlinkThreshold) {
+//				if (inlinkThreshold != 0 && (!inLinks.containsKey(id) || inLinks.get(id) < inlinkThreshold)) {
+//					line = br.readLine();
+//					continue;
+//				}
+				if (inlinkThreshold != 0 && (!anchors.containsKey(id) || anchors.get(id).size() < inlinkThreshold)) {
 					line = br.readLine();
 					continue;
-				}
+			    }
 				int outLinksPos = line.indexOf("outlinks");
-				if(Integer.valueOf(line.substring(outLinksPos+10, line.indexOf("\"", outLinksPos+10))) < outlinkThreshold){
+				int outLinks = Integer.valueOf(line.substring(outLinksPos+10, line.indexOf("\"", outLinksPos+10)));
+				if(outLinks < outlinkThreshold){
 					line = br.readLine();
 					continue;	
 				}
 				line = br.readLine();
 				title = line.substring(7,line.length()-8);
 				
-		         if (!filterTitle &&   
+		         if (filterTitle &&   
 		        		  (  title.startsWith("Media:")
 		        	      || title.startsWith("Special:")
 		        	      || title.startsWith("Talk:")
@@ -172,7 +194,7 @@ public class GabToLucene {
 						line = br.readLine();
 					}
 					
-					text = text.replaceAll("[^\\w]", " ");
+//					text = text.replaceAll("[^\\w]", " ");
 					String[] words = text.split(" ");
 			        text = "";
 			        String space = " ";
@@ -196,6 +218,11 @@ public class GabToLucene {
 			         for(int i = 0; i < titleWeight-1; i++) {
 			        	 title += title; 
 			         }
+			         if(anchors.containsKey(id)) {
+				         for(String a: anchors.get(id)) {
+				        	 text += a + " ";
+				         }
+			         }
 					doc.add(new TextField("contents", title + text, Field.Store.NO ));
 					writer.addDocument( doc );
 					if ( iArticleCount % 1000 == 0 )
@@ -213,6 +240,8 @@ public class GabToLucene {
 		br.close();
 		endStatement = end.getTime() - start.getTime() + " total milliseconds (" + (end.getTime() - start.getTime())/3600000.0 + " hours), " + iArticleCount + " Articles.";
 		System.out.println(endStatement);
+		System.out.println("index_time\tindex_name\t");
+		System.out.println(end.getTime() - start.getTime() + "\t" + indexPath);
 		
 	}
 	  public static final String[] stopCategories = new String[] {
