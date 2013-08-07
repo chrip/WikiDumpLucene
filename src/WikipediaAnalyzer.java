@@ -22,14 +22,14 @@ import org.apache.lucene.util.Version;
 public class WikipediaAnalyzer extends Analyzer {
 		// stopword set for filtering tokens
 		final CharArraySet stopWordSet;
+		Statistics _stats;
 		
+		public WikipediaAnalyzer(Statistics stats) throws IOException {
 
-		public WikipediaAnalyzer(String stopWordsFile) throws IOException {
-
-
+			_stats = stats;
 			// read stop words
-			if (stopWordsFile != null) {
-				InputStream is = new FileInputStream(stopWordsFile);
+			if (_stats.stopWordsPath != null) {
+				InputStream is = new FileInputStream(_stats.stopWordsPath);
 				BufferedReader br = new BufferedReader(new InputStreamReader(is));
 				ArrayList<String> stopWords = new ArrayList<String>(500);
 
@@ -63,9 +63,9 @@ public class WikipediaAnalyzer extends Analyzer {
 		}
         
 //	    tok = new StopFilter(Version.LUCENE_43, tok, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-	    tok = new PorterStemFilter(tok);
-	    tok = new PorterStemFilter(tok);
-	    tok = new PorterStemFilter(tok);
+		for (int i = 0; i < _stats.stemmerCalls; i++) {
+		    tok = new PorterStemFilter(tok);
+		}
 	    return new TokenStreamComponents(src, tok);
 		  
 	  }

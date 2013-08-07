@@ -1,81 +1,164 @@
+import java.io.File;
 import java.lang.reflect.Field;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.HashMap;
 
 
 public class Statistics {
-	static int inlinkThreshold = 0;
-	static int outlinkThreshold = 0;
-	static int numberOfUniqueNonStopwordsThreshold = 0;
-	static int minWordLengthThreshold = 0;
-	static int titleWeight = 4;
-	static boolean filterTitle = false;
-	static boolean filterCategories = false;
-	static boolean filterStopWords = false;
-	static String indexPath = "/home/chrisschaefer/Downloads/wikipedia-gab-2013-07-29";
-	static String anchorText = "NONE"; //, UNIQUE, ALL };
-	static long runtimeInMilliSec = 0;
-	static int numberOfWords = 0;
-	static int numberOfDocs = 0;
+	int inlinkThreshold = 0;
+	int outlinkThreshold = 0;
+	int numberOfUniqueNonStopwordsThreshold = 0;
+	int minWordLengthThreshold = 0;
+	int titleWeight = 4;
+	boolean filterTitle = false;
+	boolean filterCategories = false;
+	boolean filterStopWords = false;
+	String indexPath = "/home/chrisschaefer/robustnes_evaluation/wikipedia-gab-1";
+	String stopWordsPath = "/home/chrisschaefer/Arbeitsfläche/github/esalib/res/stopwords.en.txt";
+	String anchorText = "NONE"; //, UNIQUE, ALL };
+	double runtimeInHours = 0;
+	int numberOfDocs = 0;
 
-	static String similarity = "ESA"; //, DEFAULT_LUCENE }
-	static int stemmerCalls = 0;
+	String similarity = "ESA"; //, DEFAULT_LUCENE }
+	int stemmerCalls = 0;
+
+	boolean indexPruning = false;
+	double tfidfThreshold = 0;
+	int freqThreshold = 0;
+	int WINDOW_SIZE = 100;
+	double WINDOW_THRES = 0.005f;
 	
-	static double tfidfThreshold = 9.28;
-	static int freqThreshold = 0;
-	static int WINDOW_SIZE = 100;
-	static double WINDOW_THRES = 0.005f;
+	String[] algorithms = {"NWD", "ESA", "SNWD", "luceneScoreWikiDistance" };
+	String[] datasets = { "mc", "rg", "wordsim", "bless", "sn"};
+	HashMap<String, Double> correlation;
+	
+	DecimalFormat myFormatter;
+	
+	Statistics () {
+		correlation = new HashMap<String, Double>();
+		myFormatter = new DecimalFormat("###.#####");
+		DecimalFormatSymbols df = new DecimalFormatSymbols();
+		df.setDecimalSeparator('.');
+		myFormatter.setDecimalFormatSymbols(df);
+	}
+	
+	public String getOutputPath(String algorithmName, String datasetName) {
+		File theDir = new File(indexPath + "/" + algorithmName);
+		if (!theDir.exists()) {
+		   theDir.mkdir();
+		}
+		return indexPath + "/" + algorithmName + "/" + datasetName + "-frame.csv";
+	}
 
-	static double wikiDistance = 0;
-	static double cosineDistance = 0;
-	static double scoredWikiDistance = 0;
+	public String getInputPath(String datasetName) {
+		return "/home/chrisschaefer/Arbeitsfläche/github/sim-eval/datasets/" + datasetName + ".csv";
+	}
+	
+	public void setSpearmansCorrelation(double co, String datasetName, String algotithm) {
+		correlation.put(algotithm+datasetName+"Spearmans", co);
+	}
 
+	public void setPearsonsCorrelation(double co, String datasetName, String algotithm) {
+		correlation.put(algotithm+datasetName+"Pearsons", co);
+	}
+	
+	public String getHeader() {
+		StringBuilder result = new StringBuilder();
 
+		//determine fields declared in this class only (no fields of superclass)
+		Field[] fields = this.getClass().getDeclaredFields();
 
+		boolean isFirstLine = true;
+		//print field names
 
-public String getHeader() {
-  StringBuilder result = new StringBuilder();
+		for ( Field field : fields  ) {
+			result.append(isFirstLine?"":"\t");
+			isFirstLine = false;
+			if(field.getName().equals("algorithms") 
+					|| field.getName().equals("datasets") 
+					|| field.getName().equals("correlation")
+					|| field.getName().equals("myFormatter")) {
+				if (field.getName().equals("algorithms")) {
+					for (String a : algorithms) {
+						for(String ds: datasets) {
+							if(ds.equals("mc") || ds.equals("rg") || ds.equals("wordsim")) {
+								result.append( ds+"_"+a+"_Spearmans" + "\t");
+								result.append( ds+"_"+a+"_Pearsons" + "\t");
+							}
+						}
+					}
+				}
+				else {
+					continue;
+				}
+			}
+			else {
+				result.append( field.getName() );
+			}
+			
+		}
+		return result.toString() + "\n";
+	}
 
-  //determine fields declared in this class only (no fields of superclass)
-  Field[] fields = this.getClass().getDeclaredFields();
-  
-  boolean isFirstLine = true;
-  //print field names
+	public String getValues() {
+		StringBuilder result = new StringBuilder();
 
-  for ( Field field : fields  ) {
-      result.append(isFirstLine?"":"\t");
-      isFirstLine = false;
-      result.append( field.getName() );
-  }
-  return result.toString();
-}
+		//determine fields declared in this class only (no fields of superclass)
+		Field[] fields = this.getClass().getDeclaredFields();
 
+		boolean isFirstLine = true;
+		//print field values
+		for ( Field field : fields  ) {
+			try {
+				result.append(isFirstLine?"":"\t");
+				isFirstLine = false;
+				//requires access to private field:
+				if(field.getName().equals("algorithms") 
+						|| field.getName().equals("datasets") 
+						|| field.getName().equals("correlation")
+						|| field.getName().equals("myFormatter")) {
+					if (field.getName().equals("algorithms")) {
+						for (String a : algorithms) {
+							for(String ds: datasets) {
+								if(ds.equals("mc") || ds.equals("rg") || ds.equals("wordsim")) {
+									try {
+										result.append( myFormatter.format(correlation.get(a+ds+"Spearmans")) + "\t");
+										result.append( myFormatter.format(correlation.get(a+ds+"Pearsons")) + "\t");
+										}
+										catch (Exception e) {
+											System.out.println(a+ " "+ds +" "+ correlation.get(a+ds+"Spearmans"));
+											System.out.println(a+ " "+ds +" "+ correlation.get(a+ds+"Pearsons"));
+											System.out.println(e);								
+										}
+								}
+							}
+						}
+					}
+					else {
+						continue;
+					}
+				}
+				else {
+					result.append( field.get(this) );
+				}
+				
+				
+			} catch ( IllegalAccessException ex ) {
+				System.out.println(ex);
+			}
+		}
 
+		return result.toString() + "\n";
+	}
 
-public String getValues() {
-  StringBuilder result = new StringBuilder();
-
-  //determine fields declared in this class only (no fields of superclass)
-  Field[] fields = this.getClass().getDeclaredFields();
-
-  boolean isFirstLine = true;
-  //print field values
-  for ( Field field : fields  ) {
-    try {
-    	result.append(isFirstLine?"":"\t");
-        isFirstLine = false;
-      //requires access to private field:
-      result.append( field.get(this) );
-    } catch ( IllegalAccessException ex ) {
-      System.out.println(ex);
-    }
-  }
-
-  return result.toString();
-}
-
-public static void main(String[] args) {
-	Statistics s = new Statistics();
-	System.out.println(s.getHeader());
-	System.out.println(s.getValues());
-}
+	public static void main(String[] args) {
+		long start = System.currentTimeMillis();
+		Statistics s = new Statistics();
+		System.out.println(s.getHeader());
+		System.out.println(s.getValues());
+		
+		System.out.println(System.currentTimeMillis() - start);
+	}
 
 }

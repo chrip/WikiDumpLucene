@@ -1,14 +1,20 @@
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.LineNumberReader;
+import java.io.OutputStreamWriter;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
+//import org.apache.lucene.analysis.standard.StandardAnalyzer;
 
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.DirectoryReader;
@@ -26,10 +32,11 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.similarities.DefaultSimilarity;
+//import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
 
+import org.apache.commons.math3.stat.correlation.PearsonsCorrelation;
 import org.apache.commons.math3.stat.correlation.SpearmansCorrelation;
 
 
@@ -38,130 +45,99 @@ import org.apache.commons.math3.stat.correlation.SpearmansCorrelation;
 public class ExtendedBooleanWikiDistance {
 
 	static String field = "contents";
-//	static String indexPath = "/home/chrisschaefer/2013-06-18-lucene-gab-standard";
-	static String indexPath = "/home/chrisschaefer/Downloads/wikipedia-gab-2013-07-29";
-//	static String indexPath = "/home/chrisschaefer/2013-06-17-lucene";
-	static String wordsim353Path = "/home/chrisschaefer/Arbeitsfläche/github/wikiprep-esa/esa-lucene/src/config/wordsim353-combined.tab";
+
 	static IndexReader reader;
 	static IndexSearcher searcher;
 	static Analyzer analyzer;
 	static QueryParser parser;
-	static QueryParser parserTitle;
-	static boolean useWikiDistance = false;
-	static boolean useExtendedWikiDistance = false;
-	static boolean useCosineDistance = true;
-	static boolean useScoredDistance = false;
+
 	static ESASimilarity esaSimilarity;
-//	static DefaultSimilarity esaSimilarity;
+ //	static DefaultSimilarity esaSimilarity;
+	static Statistics _stats;
 
-	static double tfidfThreshold = 9.28;
-	static int freqThreshold = 0;
-	static int WINDOW_SIZE = 100;
-	static double WINDOW_THRES = 0.005f;
-	/**
-	 * @param args
-	 * @throws IOException 
-	 * @throws ParseException 
-	 */
-	public static void main(String[] args) throws IOException, ParseException {
-
-		for(int i = 0;i < args.length;i++) {
-			if ("-index".equals(args[i])) {
-				indexPath = args[i+1];
-				i++;
-			} else if ("-field".equals(args[i])) {
-				field = args[i+1];
-				i++;
-			} else if ("-wordsim353".equals(args[i])) {
-				wordsim353Path = args[i+1];
-				i++;
-			} 
-			else if ("-wikiDistance".equals(args[i])) {
-				useWikiDistance = true;
-				i++;
-			}
-			else if ("-extendedWikiDistance".equals(args[i])) {
-				useExtendedWikiDistance = true;
-				i++;
-			}
-			else if ("-cosineDistance".equals(args[i])) {
-				useCosineDistance = true;
-				i++;
-			}
-			else if ("-scoredDistance".equals(args[i])) {
-				useScoredDistance = true;
-				i++;
-			}
-		}
-
-		reader = DirectoryReader.open(FSDirectory.open(new File(indexPath)));
+	public static void evaluate(Statistics stats) throws IOException, ParseException {
+		_stats = stats;
+		
+		reader = DirectoryReader.open(FSDirectory.open(new File(_stats.indexPath)));
 		searcher = new IndexSearcher(reader);
 //		esaSimilarity = new DefaultSimilarity();
 		esaSimilarity = new ESASimilarity();
 		searcher.setSimilarity(esaSimilarity);
 
 
-		Analyzer analyzer = new WikipediaAnalyzer("/home/chrisschaefer/Arbeitsfläche/github/esalib/res/stopwords.en.txt");
+		Analyzer analyzer = new WikipediaAnalyzer(_stats);
 //		Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_43);
 		parser = new QueryParser(Version.LUCENE_43, field, analyzer);
 
-
-		double maxPc = 0, maxTfidfThres = 0, maxFreqThres = 0, maxCorrelation = 0, maxWINDOW_THRES = 0;
 		
-		for(tfidfThreshold = 0.000; tfidfThreshold < 0.02; tfidfThreshold+=0.001) {
-			for(WINDOW_THRES = 0; WINDOW_THRES < 0.02; WINDOW_THRES+=0.001) {
-				//parserTitle = new QueryParser(Version.LUCENE_43, "title", analyzer);
+		for(String datasetName: _stats.datasets) {
+			for(String algotithm : _stats.algorithms) {
 				String line;
-				FileReader is = new FileReader(wordsim353Path);
+				FileReader is = new FileReader(_stats.getInputPath(datasetName));
 				BufferedReader br = new BufferedReader(is);
-				br.readLine(); //skip first line
-				//System.out.println("Word 1\tWord 2\tHuman (mean)\tScore");
-				double[] xArray = new double[353];
-				double[] yArray = new double[353];
+
+				
+				LineNumberReader  lnr = new LineNumberReader(new FileReader(_stats.getInputPath(datasetName)));
+				lnr.skip(Long.MAX_VALUE);
+				int n = lnr.getLineNumber();
+				lnr.close();
+				double[] xArray = new double[n];
+				double[] yArray = new double[n];
+				
+				BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(_stats.getOutputPath(algotithm, datasetName)),"UTF-8"));
+				
 				int i = 0;
 				while((line = br.readLine()) != null){
-					final String [] parts = line.split("\t");
+					final String [] parts = line.split(";");
 					if(parts.length != 3) {
 						break;
 					}
-					xArray[i] = Double.valueOf(parts[2]);
-					if(useWikiDistance) {
-						yArray[i] = wikipediaDistance(parts[0], parts[1]);
+					if(datasetName.equals("mc") || datasetName.equals("rg") || datasetName.equals("wordsim")) {
+						xArray[i] = Double.valueOf(parts[2]);
 					}
-					else if(useCosineDistance) {
+					if(algotithm.equals("NWD")) {
+						yArray[i] = wikipediaDistance(parts[0], parts[1]);
+						
+					}
+					else if(algotithm.equals("SNWD")) {
 //						yArray[i] = cosineDistance(parts[0], parts[1]);
 //						yArray[i] = GabrilovichEtAl(parts[0], parts[1]);
 						yArray[i] = ExtendedBooleanGabrilovichEtAl(parts[0], parts[1]);
 					}
-					else if(useExtendedWikiDistance) {
-						yArray[i] = extendedBooleanWikipediaDistance(parts[0], parts[1]);
+					else if(algotithm.equals("ESA")) {
+						yArray[i] = GabrilovichEtAl(parts[0], parts[1]);
 					}
-					else if(useScoredDistance) {
+//					else if(useExtendedWikiDistance) {
+//						yArray[i] = extendedBooleanWikipediaDistance(parts[0], parts[1]);
+//					}
+					else if(algotithm.equals("luceneScoreWikiDistance")) {
 						yArray[i] = scoredWikipediaDistance(parts[0], parts[1]);
 					}
-					//System.out.println(line + "\t" + yArray[i]);
+					if(yArray[i] < 0 || yArray[i] > 1) {
+						System.out.println("correlation: " + algotithm + " " + yArray[i] + " " + datasetName + " " + parts[0] + " " + parts[1]);
+					}
+					bw.write(line + ";" + _stats.myFormatter.format(yArray[i]) + "\n");
 					i++;
 				}
 				br.close();
-				SpearmansCorrelation sc = new SpearmansCorrelation();
-				double co = sc.correlation(xArray, yArray);
-				if(Math.abs(co) > Math.abs(maxCorrelation)) {
-					maxFreqThres = freqThreshold;
-					maxTfidfThres = tfidfThreshold;
-					maxWINDOW_THRES = WINDOW_THRES;
-					maxCorrelation = co;
-				}
-				System.out.println("correlation: " + co + " " + tfidfThreshold + " " + freqThreshold + " " + WINDOW_THRES);
-			}
-			
-			//PearsonsCorrelation pc = new PearsonsCorrelation();
-			//System.out.println("Pearson's linear correlation coefficient: " + pc.correlation(xArray, yArray));
+				bw.close();
 				
+				if(datasetName.equals("mc") || datasetName.equals("rg") || datasetName.equals("wordsim")) {
+					SpearmansCorrelation sc = new SpearmansCorrelation();
+					double co1 = sc.correlation(xArray, yArray);					
+					_stats.setSpearmansCorrelation(co1, datasetName, algotithm);
+					
+					PearsonsCorrelation pc = new PearsonsCorrelation();
+					double co2 = pc.correlation(xArray, yArray);
+					_stats.setPearsonsCorrelation(co2, datasetName, algotithm);
+				}
+				
+				_stats.numberOfDocs = reader.numDocs();
+	
+//				System.out.println("correlation: " + co + " " + tfidfThreshold + " " + freqThreshold + " " + WINDOW_THRES);
+			}
+
 		}
-		System.out.println("freqThreshold: " + maxFreqThres);
-		System.out.println("tfidfThreshold: " + maxTfidfThres);
-		System.out.println("maxWINDOW_THRES: " + maxWINDOW_THRES);
-		System.out.println("Spearman rank-order correlation coefficient: " + maxCorrelation);
 		
 	}
 
@@ -184,8 +160,8 @@ public class ExtendedBooleanWikiDistance {
 
 		TopDocs results0AND1 = searcher.search(query0AND1, 1);
 		
-		if(results0.totalHits < 1 || results0.totalHits < 1|| results0AND1.totalHits < 1) {
-			return 5;
+		if(results0.totalHits < 1 || results1.totalHits < 1|| results0AND1.totalHits < 1) {
+			return 0;
 		}
 
 		double log0, log1 , logCommon, maxlog, minlog;
@@ -195,7 +171,7 @@ public class ExtendedBooleanWikiDistance {
 		maxlog = Math.max(log0, log1);
 		minlog = Math.min(log0, log1);
 
-		return (maxlog - logCommon) / (Math.log(reader.numDocs()) - minlog); 
+		return 1 - 0.5 * (maxlog - logCommon) / (Math.log(reader.numDocs()) - minlog); 
 
 	}
 
@@ -216,7 +192,7 @@ public class ExtendedBooleanWikiDistance {
 		TopDocs results1 = tfc1.topDocs();
 
 		if(tfc0.getTotalHits() < 1 || tfc1.getTotalHits() < 1) {
-			return 5;
+			return 0;
 		}
 		double log0, log1 , logCommon, maxlog, minlog;
 
@@ -226,7 +202,7 @@ public class ExtendedBooleanWikiDistance {
 		maxlog = Math.max(log0, log1);
 		minlog = Math.min(log0, log1);
 
-		return (maxlog - logCommon) / (Math.log(reader.numDocs()) - minlog); 
+		return 1 - 0.5 * (maxlog - logCommon) / (Math.log(reader.numDocs()) - minlog); 
 	}
 
 	private static double sumScores(TopDocs results) {
@@ -308,10 +284,10 @@ public class ExtendedBooleanWikiDistance {
 			double score0 = results0.scoreDocs[i].score/maxScore0;
 			double score1 = results1.scoreDocs[j].score/maxScore1;
 
-			if(score0 < tfidfThreshold) {
+			if(score0 < _stats.tfidfThreshold) {
 				score0 = 0.0;	        	
 			}
-			if(score1 < tfidfThreshold) {
+			if(score1 < _stats.tfidfThreshold) {
 				score1 = 0.0;
 			}
 			if (results0.scoreDocs[i].doc < results1.scoreDocs[j].doc) {
@@ -332,7 +308,7 @@ public class ExtendedBooleanWikiDistance {
 		}
 		while (i < results0.scoreDocs.length) {
 			double score0 = results0.scoreDocs[i].score/maxScore0;
-			if(score0 < tfidfThreshold) {
+			if(score0 < _stats.tfidfThreshold) {
 				score0 = 0.0;	        	
 			}
 			r0Norm += Math.pow(score0, 2);
@@ -341,7 +317,7 @@ public class ExtendedBooleanWikiDistance {
 		}
 		while (j < results1.scoreDocs.length) {
 			double score1 = results1.scoreDocs[j].score/maxScore1;
-			if(score1 < tfidfThreshold) {
+			if(score1 < _stats.tfidfThreshold) {
 				score1 = 0.0;
 			}
 			r1Norm += Math.pow(score1, 2);
@@ -372,18 +348,22 @@ public class ExtendedBooleanWikiDistance {
 		TopDocs results1 = tfc1.topDocs();
 
 		if(tfc0.getTotalHits() < 1 || tfc1.getTotalHits() < 1) {
-			return 5;
+			return 0;
 		}
 
 		double log0, log1 , logCommon, maxlog, minlog;
 
 		log0 = Math.log(sumScores(results0));
-		log1 = Math.log(sumScores(results1));	
-		logCommon = Math.log(sumCommonScores(results0, results1));
+		log1 = Math.log(sumScores(results1));
+        double commonScore = sumCommonScores(results0, results1);
+		if(commonScore == 0) {
+			return 0;
+		}
+		logCommon = Math.log(commonScore);
 		maxlog = Math.max(log0, log1);
 		minlog = Math.min(log0, log1);
 
-		return (maxlog - logCommon) / (Math.log(reader.numDocs()) - minlog); 
+		return 1 - 0.5 * (maxlog - logCommon) / (Math.log(reader.numDocs()) - minlog); 
 	}
 
 
@@ -398,7 +378,7 @@ public class ExtendedBooleanWikiDistance {
 				i++;
 			}
 			else if (results0.scoreDocs[i].doc == results1.scoreDocs[j].doc) {
-				if(results0.scoreDocs[i].score > tfidfThreshold/maxScore0 && results1.scoreDocs[j].score/maxScore1 > tfidfThreshold) {
+				if(results0.scoreDocs[i].score > _stats.tfidfThreshold/maxScore0 && results1.scoreDocs[j].score/maxScore1 > _stats.tfidfThreshold) {
 					double sim1AND2 = (results0.scoreDocs[i].score/maxScore0)  * (results1.scoreDocs[j].score/maxScore1);
 					sum += sim1AND2;
 				}
@@ -420,8 +400,6 @@ public class ExtendedBooleanWikiDistance {
 		AtomicReader ar = reader.leaves().get(0).reader();	
 
 		int totalDocs = reader.numDocs();
-		String s = new String();
-		int o = 0;	
 
 		String term0Parsed = query0.toString();
 		String term1Parsed = query1.toString();
@@ -455,10 +433,10 @@ public class ExtendedBooleanWikiDistance {
 			double tfidf0 = prunedVector0.get(i).score;
 			double tfidf1 = prunedVector1.get(j).score;
 
-			if (docFreq0 < freqThreshold || tfidf0 < tfidfThreshold){
+			if (docFreq0 < _stats.freqThreshold || tfidf0 < _stats.tfidfThreshold){
 				tfidf0 = 0;
 			}
-			if (docFreq1 < freqThreshold || tfidf1 < tfidfThreshold){
+			if (docFreq1 < _stats.freqThreshold || tfidf1 < _stats.tfidfThreshold){
 				tfidf1 = 0;
 			}
 			
@@ -487,7 +465,7 @@ public class ExtendedBooleanWikiDistance {
 		while (i < prunedVector0.size()) {
 			double tfidf0 = prunedVector0.get(i).score;
 
-			if (docFreq0 < freqThreshold || tfidf0 < tfidfThreshold){
+			if (docFreq0 < _stats.freqThreshold || tfidf0 < _stats.tfidfThreshold){
 				tfidf0 = 0;
 			}
 			r0Norm += Math.pow(tfidf0, 2);
@@ -496,7 +474,7 @@ public class ExtendedBooleanWikiDistance {
 		while (j < prunedVector1.size()) {
 			double tfidf1 = prunedVector1.get(j).score;
 
-			if (docFreq1 < freqThreshold || tfidf1 < tfidfThreshold){
+			if (docFreq1 < _stats.freqThreshold || tfidf1 < _stats.tfidfThreshold){
 				tfidf1 = 0;
 			}
 			r1Norm += Math.pow(tfidf1, 2);
@@ -513,11 +491,14 @@ public class ExtendedBooleanWikiDistance {
 	
 	private static List<IdScorePair> getIndexPruningThreshold(DocsEnum docEnum, double idf) throws IOException {
 		List<IdScorePair> termVector = new ArrayList<IdScorePair>();
-		
+		if (docEnum == null) {
+			return termVector;
+		}
 		int docid = docEnum.nextDoc();
 		double sum = 0;
 		while (docid != DocsEnum.NO_MORE_DOCS) {
-			double tfidf = esaSimilarity.tf(docEnum.freq()) * idf;
+			int termFreq = docEnum.freq();
+			double tfidf = esaSimilarity.tf(termFreq) * idf;
 			sum+= tfidf * tfidf;
 			termVector.add(new IdScorePair(docid, tfidf));
 			docid = docEnum.nextDoc();
@@ -529,55 +510,55 @@ public class ExtendedBooleanWikiDistance {
 			p.score = p.score/sum;
 		}
 		
-		
-		Collections.sort(termVector, new ScoreComparator());
-		
-		int mark = 0;
-		int windowMark = 0;
-		double score = 0;
-		double highest = 0;
-		double first = 0;
-		double last = 0;
-		
-		double[] window = new double[WINDOW_SIZE];
-
-		for (int j = 0; j < termVector.size(); j++) {
-			score = termVector.get(j).score;
-
-			// sliding window
-
-			window[windowMark] = score;
-
-			if (mark == 0) {
-				highest = score;
-				first = score;
-			}
-
-			if (mark < WINDOW_SIZE) {
-				// fill window
-			} else if (highest * WINDOW_THRES < (first - last)) {
-				// ok
-
-				if (windowMark < WINDOW_SIZE - 1) {
-					first = window[windowMark + 1];
-				} else {
-					first = window[0];
+		if(_stats.indexPruning) {
+			Collections.sort(termVector, new ScoreComparator());
+			
+			int mark = 0;
+			int windowMark = 0;
+			double score = 0;
+			double highest = 0;
+			double first = 0;
+			double last = 0;
+			
+			double[] window = new double[_stats.WINDOW_SIZE];
+	
+			for (int j = 0; j < termVector.size(); j++) {
+				score = termVector.get(j).score;
+	
+				// sliding window
+	
+				window[windowMark] = score;
+	
+				if (mark == 0) {
+					highest = score;
+					first = score;
 				}
-			} else {
-				// truncate
-				termVector = termVector.subList(0, j);
-				break;
+	
+				if (mark < _stats.WINDOW_SIZE) {
+					// fill window
+				} else if (highest * _stats.WINDOW_THRES < (first - last)) {
+					// ok
+	
+					if (windowMark < _stats.WINDOW_SIZE - 1) {
+						first = window[windowMark + 1];
+					} else {
+						first = window[0];
+					}
+				} else {
+					// truncate
+					termVector = termVector.subList(0, j);
+					break;
+				}
+	
+				last = score;
+	
+				mark++;
+				windowMark++;
+	
+				windowMark = windowMark % _stats.WINDOW_SIZE;
+	
 			}
-
-			last = score;
-
-			mark++;
-			windowMark++;
-
-			windowMark = windowMark % WINDOW_SIZE;
-
 		}
-		
 		Collections.sort(termVector, new IdComparator());
 		
 		return termVector;
@@ -591,8 +572,6 @@ public class ExtendedBooleanWikiDistance {
 		AtomicReader ar = reader.leaves().get(0).reader();	
 
 		int totalDocs = reader.numDocs();
-		String s = new String();
-		int o = 0;	
 
 		String term0Parsed = query0.toString();
 		String term1Parsed = query1.toString();
@@ -626,31 +605,27 @@ public class ExtendedBooleanWikiDistance {
 			double tfidf0 = prunedVector0.get(i).score;
 			double tfidf1 = prunedVector1.get(j).score;
 
-			if (docFreq0 < freqThreshold || tfidf0 < tfidfThreshold){
+			if (docFreq0 < _stats.freqThreshold || tfidf0 < _stats.tfidfThreshold){
 				tfidf0 = 0;
 			}
-			if (docFreq1 < freqThreshold || tfidf1 < tfidfThreshold){
+			if (docFreq1 < _stats.freqThreshold || tfidf1 < _stats.tfidfThreshold){
 				tfidf1 = 0;
 			}
 			
 			
 			if (docid0 < docid1) {
 				r0Norm += tfidf0;
-				docid0 = prunedVector0.get(i).id;
 				i++;
 			}
 			else if (docid0 == docid1) {
 				scalar += tfidf0 * tfidf1;
 				r0Norm += tfidf0;
 				r1Norm += tfidf1;
-				docid0 = prunedVector0.get(i).id;
-				docid1 = prunedVector1.get(j).id;
 				i++;
 				j++;
 			}
 			else {
 				r1Norm +=tfidf1;
-				docid1 = prunedVector1.get(j).id;
 				j++;
 			}
 
@@ -658,7 +633,7 @@ public class ExtendedBooleanWikiDistance {
 		while (i < prunedVector0.size()) {
 			double tfidf0 = prunedVector0.get(i).score;
 
-			if (docFreq0 < freqThreshold || tfidf0 < tfidfThreshold){
+			if (docFreq0 < _stats.freqThreshold || tfidf0 < _stats.tfidfThreshold){
 				tfidf0 = 0;
 			}
 			r0Norm += tfidf0;
@@ -667,13 +642,15 @@ public class ExtendedBooleanWikiDistance {
 		while (j < prunedVector1.size()) {
 			double tfidf1 = prunedVector1.get(j).score;
 
-			if (docFreq1 < freqThreshold || tfidf1 < tfidfThreshold){
+			if (docFreq1 < _stats.freqThreshold || tfidf1 < _stats.tfidfThreshold){
 				tfidf1 = 0;
 			}
 			r1Norm += tfidf1;
 			j++;
 		}
-		
+		if(scalar == 0) {
+			return 0;
+		}
 		double log0, log1 , logCommon, maxlog, minlog;
 
 		log0 = Math.log(r0Norm);
@@ -681,8 +658,8 @@ public class ExtendedBooleanWikiDistance {
 		logCommon = Math.log(scalar);
 		maxlog = Math.max(log0, log1);
 		minlog = Math.min(log0, log1);
-
-		return - (maxlog - logCommon) / (Math.log(totalDocs) - minlog); 
+		
+		return 1 - 0.5 * (maxlog - logCommon) / (Math.log(totalDocs) - minlog); 
 	}
 	
 }

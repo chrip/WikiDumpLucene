@@ -24,27 +24,19 @@ import org.apache.lucene.util.Version;
 
 
 public class GabToLucene {
-	static int inlinkThreshold = 0;
-	static int outlinkThreshold = 0;
-	static int numberOfUniqueNonStopwordsThreshold = 0;
-	static int minWordLengthThreshold = 0;
-	static int titleWeight = 4;
-	static boolean filterTitle = false;
-	static boolean filterCategories = false;
-	static boolean filterStopWords = false;
 	
-	public static void main(String[] args) throws IOException {
+	public static void buildIndex(Statistics stats) throws IOException {
 		Date start = new Date();
 		
 //		Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_43);
-		Analyzer analyzer = new WikipediaAnalyzer("/home/chrisschaefer/Arbeitsfläche/github/esalib/res/stopwords.en.txt");
+		Analyzer analyzer = new WikipediaAnalyzer(stats);
 		IndexWriterConfig iwc = new IndexWriterConfig(Version.LUCENE_43, analyzer);
 
 		iwc.setSimilarity(new ESASimilarity());
 		iwc.setOpenMode(OpenMode.CREATE);
 		iwc.setRAMBufferSizeMB(2000.0);
-		String indexPath = "/home/chrisschaefer/Downloads/wikipedia-gab-2013-07-29";
-		Directory dir = FSDirectory.open(new File(indexPath));
+
+		Directory dir = FSDirectory.open(new File(stats.indexPath));
 		IndexWriter writer = new IndexWriter(dir, iwc);
 
 		String dumpFile = "/home/chrisschaefer/Arbeitsfläche/github/wikiprep-esa-original/data/20051105_pages_articles.hgw.xml";
@@ -120,20 +112,20 @@ public class GabToLucene {
 //					line = br.readLine();
 //					continue;
 //				}
-				if (inlinkThreshold != 0 && (!anchors.containsKey(id) || anchors.get(id).size() < inlinkThreshold)) {
+				if (stats.inlinkThreshold != 0 && (!anchors.containsKey(id) || anchors.get(id).size() < stats.inlinkThreshold)) {
 					line = br.readLine();
 					continue;
 			    }
 				int outLinksPos = line.indexOf("outlinks");
 				int outLinks = Integer.valueOf(line.substring(outLinksPos+10, line.indexOf("\"", outLinksPos+10)));
-				if(outLinks < outlinkThreshold){
+				if(outLinks < stats.outlinkThreshold){
 					line = br.readLine();
 					continue;	
 				}
 				line = br.readLine();
 				title = line.substring(7,line.length()-8);
 				
-		         if (filterTitle &&   
+		         if (stats.filterTitle &&   
 		        		  (  title.startsWith("Media:")
 		        	      || title.startsWith("Special:")
 		        	      || title.startsWith("Talk:")
@@ -174,7 +166,7 @@ public class GabToLucene {
 				line = br.readLine();
 				String[] categories = line.substring(12, line.length()-13).split(" ");
 				boolean stop = false;
-				for(int i = 1; filterCategories && i < categories.length-1; i++) {         		 
+				for(int i = 1; stats.filterCategories && i < categories.length-1; i++) {         		 
 					if(stopCategoriesSet.contains(categories[i])) {
 						stop = true;
 						break;
@@ -201,26 +193,28 @@ public class GabToLucene {
 			        Set<String> wordSet = new HashSet<String>();
 			        for(String w : words) {
 			        	w = w.toLowerCase();
-			        	if(w.length() < minWordLengthThreshold || (filterStopWords && stopWordSet.contains(w))) {
+			        	if(w.length() < stats.minWordLengthThreshold || (stats.filterStopWords && stopWordSet.contains(w))) {
 			        		continue;
 			        	}
 			        	wordSet.add(w);
 			        	text += space;
 			        	text += w;
 			        }        
-			        if(wordSet.size() < numberOfUniqueNonStopwordsThreshold) {
+			        if(wordSet.size() < stats.numberOfUniqueNonStopwordsThreshold) {
 			        	line = br.readLine();
 			        	continue;
 			        }
 			        iArticleCount++;
 			        Document doc = new Document();
 			         title += " ";
-			         for(int i = 0; i < titleWeight-1; i++) {
+			         for(int i = 0; i < stats.titleWeight-1; i++) {
 			        	 title += title; 
 			         }
-			         if(anchors.containsKey(id)) {
-				         for(String a: anchors.get(id)) {
-				        	 text += a + " ";
+			         if(stats.anchorText.equals("ALL")) {
+				         if(anchors.containsKey(id)) {
+					         for(String a: anchors.get(id)) {
+					        	 text += a + " ";
+					         }
 				         }
 			         }
 					doc.add(new TextField("contents", title + text, Field.Store.NO ));
@@ -241,7 +235,7 @@ public class GabToLucene {
 		endStatement = end.getTime() - start.getTime() + " total milliseconds (" + (end.getTime() - start.getTime())/3600000.0 + " hours), " + iArticleCount + " Articles.";
 		System.out.println(endStatement);
 		System.out.println("index_time\tindex_name\t");
-		System.out.println(end.getTime() - start.getTime() + "\t" + indexPath);
+		System.out.println(end.getTime() - start.getTime() + "\t" + stats.indexPath);
 		
 	}
 	  public static final String[] stopCategories = new String[] {
